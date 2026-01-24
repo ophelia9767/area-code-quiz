@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>市外局番クイズ</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121a33; --text:#e8ecff; --sub:#aeb7e6; --accent:#7aa2ff; }
+    * { box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      background: radial-gradient(1200px 800px at 20% 10%, #16204a, var(--bg));
+      color: var(--text);
+      min-height: 100svh;
+      display:grid;
+      place-items:center;
+      padding:20px;
+    }
+    .wrap{ width:min(560px, 100%); }
+    .card{
+      background: rgba(18,26,51,.92);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 22px 18px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.35);
+      user-select:none;
+    }
+    .title{ font-size:18px; color:var(--sub); margin:0 0 14px; }
+    .big{
+      font-size:56px;
+      letter-spacing:.06em;
+      text-align:center;
+      margin: 10px 0 6px;
+      font-weight: 800;
+      word-break: break-word;
+    }
+    .answer{
+      text-align:center;
+      font-size:18px;
+      line-height:1.6;
+      margin: 14px 0 4px;
+      color: var(--text);
+      opacity:0;
+      transform: translateY(6px);
+      transition: .18s ease;
+      min-height: 62px;
+      padding: 0 6px;
+    }
+    .answer.show{ opacity:1; transform: translateY(0); }
+    .hint{ text-align:center; color:var(--sub); margin: 14px 0 0; font-size:14px; }
+    .bar{ display:flex; gap:10px; margin-top: 14px; align-items:center; color:var(--sub); font-size:13px; flex-wrap: wrap; }
+    .pill{
+      margin-left:auto;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(255,255,255,.05);
+    }
+    button{
+      width:100%;
+      margin-top:14px;
+      border:0;
+      border-radius:14px;
+      padding:12px 14px;
+      font-size:16px;
+      font-weight:700;
+      background: linear-gradient(180deg, rgba(122,162,255,.95), rgba(122,162,255,.75));
+      color:#06102a;
+      cursor:pointer;
+    }
+    button:active{ transform: translateY(1px); }
+    .mini{ margin-top:10px; display:flex; gap:10px; }
+    .mini button{
+      width: 50%;
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,.12);
+      font-weight: 600;
+    }
+    .opts{
+      margin-top: 12px;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:center;
+      color: var(--sub);
+      font-size: 13px;
+    }
+    .opts label{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.10);
+      padding: 8px 10px;
+      border-radius: 12px;
+    }
+    input[type="checkbox"]{ transform: scale(1.1); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="card">
+      <p class="title" id="title">市外局番クイズ</p>
+      <div class="big" id="code">タップして開始</div>
+      <div class="answer" id="answer"></div>
+
+      <div class="opts">
+        <label>
+          <input type="checkbox" id="only4" checked />
+          4桁のみ出題
+        </label>
+      </div>
+
+      <p class="hint" id="hint">画面をタップ：開始 / 答え表示 / 次の問題</p>
+
+      <div class="bar">
+        <span id="progress">0 / 0</span>
+        <span class="pill" id="mode">ランダム</span>
+      </div>
+
+      <button id="tapBtn" type="button">タップ</button>
+
+      <div class="mini">
+        <button id="toggleMode" type="button">出題モード切替</button>
+        <button id="reset" type="button">リセット</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/**
+ * さっきの一覧（全部入り）
+ * code は文字列。4桁以外（011/06/01235-9/0123,4,6 など）も含めている。
+ * 「4桁のみ出題」をONにすると /^\d{4}$/ のものだけ出題。
+ */
+const data = [
+  { code:"011", name:"北海道 札幌・江別・北広島" },
+  { code:"0123,4,6", name:"北海道 千歳・恵庭・苫小牧(一部)" },
+  { code:"01235-9", name:"北海道 夕張" },
+  { code:"0124", name:"北海道 芦別" },
+  { code:"0125", name:"北海道 滝川" },
+  { code:"0126", name:"北海道 岩見沢・美唄・三笠" },
+  { code:"0133", name:"北海道 石狩" },
+  { code:"0134", name:"北海道 小樽" },
+  { code:"0135", name:"北海道 余市" },
+  { code:"0136", name:"北海道 岩内" },
+  { code:"0137", name:"北海道 八雲" },
+  { code:"0138", name:"北海道 函館" },
+  { code:"0139", name:"北海道 松前・江差・奥尻" },
+  { code:"0142", name:"北海道 伊達" },
+  { code:"0143", name:"北海道 室蘭" },
+  { code:"0144", name:"北海道 苫小牧" },
+  { code:"0145", name:"北海道 むかわ・新ひだか" },
+  { code:"0146", name:"北海道 浦河・えりも" },
+  { code:"0152", name:"北海道 網走" },
+  { code:"0153", name:"北海道 根室・中標津" },
+  { code:"0154", name:"北海道 釧路" },
+  { code:"0155", name:"北海道 帯広・広尾" },
+  { code:"0156", name:"北海道 本別・士幌" },
+  { code:"0157", name:"北海道 北見" },
+  { code:"0158", name:"北海道 紋別" },
+  { code:"0159", name:"北海道 興部" },
+  { code:"0162", name:"北海道 稚内" },
+  { code:"0163", name:"北海道 枝幸・利尻" },
+  { code:"0164", name:"北海道 深川・留萌・羽幌" },
+  { code:"0165", name:"北海道 名寄" },
+  { code:"0166", name:"北海道 旭川・富良野" },
+
+  { code:"0172", name:"青森県 弘前・黒石・平川" },
+  { code:"0173", name:"青森県 五所川原・深浦" },
+  { code:"0174", name:"青森県 今別・外ヶ浜" },
+  { code:"0175", name:"青森県 むつ・下北全般" },
+  { code:"0176", name:"青森県 十和田・三沢" },
+  { code:"0177", name:"青森県 青森" },
+  { code:"0178", name:"青森県 八戸" },
+  { code:"0179", name:"青森県 三戸" },
+
+  { code:"0182", name:"秋田県 横手" },
+  { code:"0183", name:"秋田県 湯沢" },
+  { code:"0184", name:"秋田県 由利本荘・にかほ" },
+  { code:"0185", name:"秋田県 男鹿・能代" },
+  { code:"0186", name:"秋田県 鹿角・大館・北秋田" },
+  { code:"0187", name:"秋田県 仙北・大仙" },
+  { code:"0188", name:"秋田県 秋田" },
+
+  { code:"0191", name:"岩手県 一関" },
+  { code:"0192", name:"岩手県 大船渡" },
+  { code:"0193", name:"岩手県 釜石・宮古" },
+  { code:"0194", name:"岩手県 岩泉・久慈" },
+  { code:"0195", name:"岩手県 二戸・八幡平" },
+  { code:"0196", name:"岩手県 盛岡" },
+  { code:"0197", name:"岩手県 奥州・北上" },
+  { code:"0198", name:"岩手県 花巻・遠野" },
+
+  { code:"0220", name:"宮城県 登米" },
+  { code:"0222-3", name:"宮城県 仙台・名取・塩竃・岩沼" },
+  { code:"0224", name:"宮城県 白石・角田" },
+  { code:"0225", name:"宮城県 石巻・東松島" },
+  { code:"0226", name:"宮城県 気仙沼" },
+  { code:"0228", name:"宮城県 栗原・登米の一部" },
+  { code:"0229", name:"宮城県 大崎・登米の一部" },
+
+  { code:"0233", name:"山形県 新庄" },
+  { code:"0234", name:"山形県 酒田" },
+  { code:"0235", name:"山形県 鶴岡" },
+  { code:"0236", name:"山形県 山形・天童・上山" },
+  { code:"0237", name:"山形県 村山・尾花沢・東根・寒河江" },
+  { code:"0238", name:"山形県 米沢・南陽" },
+  { code:"0239", name:"山形県 長井" },
+
+  { code:"0240", name:"福島県 富岡・浪江" },
+  { code:"02412-3", name:"福島県 猪苗代・喜多方" },
+  { code:"02414-9", name:"福島県 奥会津" },
+  { code:"0242", name:"福島県 会津若松" },
+  { code:"0243", name:"福島県 二本松・本宮" },
+  { code:"0244", name:"福島県 相馬・南相馬" },
+  { code:"0245", name:"福島県 福島・伊達" },
+  { code:"0246", name:"福島県 いわき" },
+  { code:"0247", name:"福島県 田村・三春" },
+  { code:"0248", name:"福島県 白河・須賀川" },
+  { code:"0249", name:"福島県 郡山" },
+
+  { code:"0250", name:"新潟県 阿賀野・五泉" },
+  { code:"0252-3", name:"新潟県 新潟" },
+  { code:"0254", name:"新潟県 新発田・胎内・村上" },
+  { code:"0255", name:"新潟県 上越・糸魚川・妙高" },
+  { code:"0256", name:"新潟県 三条・燕・加茂・弥彦" },
+  { code:"0257", name:"新潟県 柏崎・南魚沼・魚沼" },
+  { code:"0258", name:"新潟県 長岡・小千谷・見附" },
+  { code:"0259", name:"新潟県 佐渡" },
+
+  { code:"0260", name:"長野県 阿南" },
+  { code:"0261", name:"長野県 大町・白馬" },
+  { code:"0262/02646-9", name:"長野県 長野・千曲・須坂" },
+  { code:"0263", name:"長野県 松本・塩尻・安曇野" },
+  { code:"02642-5", name:"長野県 木曽" },
+  { code:"0265", name:"長野県 飯田・駒ヶ根・伊那" },
+  { code:"0266", name:"長野県 岡谷・諏訪・茅野" },
+  { code:"0267", name:"長野県 小諸・軽井沢・佐久" },
+  { code:"0268", name:"長野県 上田・東御" },
+  { code:"0269", name:"長野県 中野・飯山" },
+
+  { code:"0270", name:"群馬県 伊勢崎" },
+  { code:"0272", name:"群馬県 前橋" },
+  { code:"0273", name:"群馬県 高崎・安中" },
+  { code:"02741-5", name:"群馬県 藤岡" },
+  { code:"02746-9", name:"群馬県 富岡・南牧" },
+  { code:"0276", name:"群馬県 太田・館林" },
+  { code:"0277", name:"群馬県 桐生・みどり" },
+  { code:"0278", name:"群馬県 沼田" },
+  { code:"0279", name:"群馬県 渋川・嬬恋" },
+
+  { code:"0280", name:"茨城県 古河（※記事内でも例外扱い）" },
+  { code:"0282", name:"栃木県 栃木" },
+  { code:"028,0283,6", name:"栃木県 宇都宮・さくら" },
+  { code:"0283", name:"栃木県 佐野" },
+  { code:"0284", name:"栃木県 足利" },
+  { code:"02852-5,9", name:"栃木県 小山・下野" },
+  { code:"02856-8", name:"栃木県 真岡" },
+  { code:"02872-5", name:"栃木県 太田原" },
+  { code:"02876-9", name:"栃木県 那須塩原・那須烏山" },
+  { code:"0288", name:"栃木県 日光" },
+  { code:"0289", name:"栃木県 鹿沼" },
+
+  { code:"0291", name:"茨城県 鉾田" },
+  { code:"0292", name:"茨城県 水戸" },
+  { code:"0293", name:"茨城県 高萩・ひたちなか・北茨城・那珂" },
+  { code:"0294", name:"茨城県 日立・常陸太田" },
+  { code:"0295", name:"茨城県 常陸大宮" },
+  { code:"0296", name:"茨城県 筑西・結城・下妻・桜川・笠間" },
+  { code:"02972-5", name:"茨城県 常総・守谷・坂東・つくばみらい" },
+  { code:"02976-9", name:"茨城県 取手・龍ヶ崎" },
+  { code:"0298", name:"茨城県 つくば・牛久・土浦・稲敷" },
+  { code:"02992-4", name:"茨城県 石岡・かすみがうら・行方・小美玉" },
+  { code:"02995-9", name:"茨城県 鹿嶋・神栖・潮来" },
+  { code:"0280", name:"茨城県 古河" },
+
+  { code:"0422,3,4.", name:"東京都 武蔵野・三鷹・府中・国分寺・多摩" },
+  { code:"0425", name:"東京都 立川・日野・あきる野" },
+  { code:"0426", name:"東京都 八王子" },
+  { code:"0427", name:"神奈川県 相模原／東京都 町田／山梨県 道志村" },
+  { code:"0428", name:"東京都 青梅・奥多摩／山梨県 小菅村・丹波山村" },
+  { code:"0429", name:"埼玉県 所沢・入間・狭山・飯能・日高（全て埼玉）" },
+
+  { code:"0432-4", name:"千葉県 千葉・佐倉・四街道・八街" },
+  { code:"0436", name:"千葉県 市原" },
+  { code:"0438", name:"千葉県 木更津・袖ヶ浦" },
+  { code:"0439", name:"千葉県 君津・冨津" },
+  { code:"0470", name:"千葉県 館山・勝浦・いすみ・鴨川" },
+  { code:"0471", name:"千葉県 柏・野田・流山・我孫子" },
+  { code:"0473,7", name:"千葉県 市川・松戸・浦安" },
+  { code:"0474,7", name:"千葉県 船橋・習志野・八千代・鎌ヶ谷・白井" },
+  { code:"0475", name:"千葉県 茂原・山武・白里大網" },
+  { code:"0476", name:"千葉県 成田・印西・冨里" },
+  { code:"0478", name:"千葉県 香取" },
+  { code:"0479", name:"千葉県 銚子・旭・匝瑳" },
+
+  { code:"044", name:"神奈川県 川崎" },
+  { code:"045", name:"神奈川県 横浜" },
+  { code:"0460", name:"神奈川県 箱根" },
+  { code:"0462", name:"神奈川県 厚木・海老名・大和・座間" },
+  { code:"0463", name:"神奈川県 平塚・秦野・伊勢原" },
+  { code:"0465", name:"神奈川県 小田原" },
+  { code:"0466", name:"神奈川県 藤沢" },
+  { code:"0467", name:"神奈川県 鎌倉・茅ヶ崎" },
+  { code:"0468", name:"神奈川県 横須賀・三浦・逗子" },
+
+  { code:"0480", name:"埼玉県 久喜・白岡・加須" },
+  { code:"0482-4", name:"埼玉県 川口・朝霞・戸田・和光" },
+  { code:"0485", name:"埼玉県 熊谷・行田・北本" },
+  { code:"0486-8", name:"埼玉県 さいたま・春日部・上尾" },
+  { code:"0489", name:"埼玉県 草加・越谷" },
+  { code:"0492", name:"埼玉県 川越・坂戸・富士見" },
+  { code:"0493", name:"埼玉県 東松山" },
+  { code:"0494", name:"埼玉県 秩父" },
+  { code:"0495", name:"埼玉県 本庄" },
+  { code:"0499", name:"東京都 伊豆諸島・小笠原諸島" },
+
+  { code:"052", name:"愛知県 名古屋・あま・清須" },
+  { code:"0531", name:"愛知県 田原" },
+  { code:"0532", name:"愛知県 豊橋" },
+  { code:"0533", name:"愛知県 豊川・蒲郡" },
+  { code:"0534-5", name:"静岡県 浜松・湖西" },
+  { code:"0536", name:"愛知県 新城" },
+  { code:"0537", name:"静岡県 掛川・菊川・御前崎" },
+  { code:"0538-9", name:"静岡県 磐田・袋井" },
+
+  { code:"0542-3", name:"静岡県 静岡" },
+  { code:"0544", name:"静岡県 富士宮" },
+  { code:"0545", name:"静岡県 富士" },
+  { code:"0546", name:"静岡県 焼津・藤枝" },
+  { code:"0547", name:"静岡県 島田・川根本町" },
+  { code:"0548", name:"静岡県 牧之原" },
+
+  { code:"0550", name:"静岡県 御殿場" },
+  { code:"0551", name:"山梨県 韮崎・北杜" },
+  { code:"0552", name:"山梨県 甲府・甲斐・笛吹・南アルプス" },
+  { code:"0553", name:"山梨県 山梨・甲州" },
+  { code:"0554", name:"山梨県 大月・都留・上野原" },
+  { code:"0555", name:"山梨県 富士吉田・富士河口湖" },
+  { code:"0556", name:"山梨県 早川・身延" },
+  { code:"0557", name:"静岡県 伊東・熱海" },
+  { code:"0558", name:"静岡県 下田・伊豆" },
+  { code:"0559", name:"静岡県 沼津・三島・伊豆の国" },
+
+  { code:"0561", name:"愛知県 瀬戸・尾張旭・みよし・長久手" },
+  { code:"0562", name:"愛知県 知多・大府・豊明・東海" },
+  { code:"0563", name:"愛知県 西尾" },
+  { code:"0564", name:"愛知県 岡崎" },
+  { code:"0565", name:"愛知県 豊田" },
+  { code:"0566", name:"愛知県 刈谷・安城・碧南・知立" },
+  { code:"0567", name:"愛知県 津島・愛西・弥富" },
+  { code:"0568", name:"愛知県 春日井・小牧・犬山・北名古屋" },
+  { code:"0569", name:"愛知県 半田・常滑" },
+  { code:"0586", name:"愛知県 一宮" },
+  { code:"0587", name:"愛知県 稲沢・岩倉" },
+
+  { code:"0572", name:"岐阜県 多治見・土岐・瑞浪" },
+  { code:"0573", name:"岐阜県 恵那・中津川" },
+  { code:"0574", name:"岐阜県 美濃加茂・可児" },
+  { code:"0575", name:"岐阜県 関・美濃・郡上" },
+  { code:"0576", name:"岐阜県 下呂" },
+  { code:"0577", name:"岐阜県 飛騨・高山" },
+  { code:"0578", name:"岐阜県 神岡（飛騨）" },
+  { code:"0581", name:"岐阜県 本巣・山県" },
+  { code:"0582,3", name:"岐阜県 岐阜・各務原・羽島" },
+  { code:"0584", name:"岐阜県 大垣・海津" },
+  { code:"0585", name:"岐阜県 揖斐川" },
+
+  { code:"0592", name:"三重県 津" },
+  { code:"0593", name:"三重県 四日市・鈴鹿" },
+  { code:"0594", name:"三重県 いなべ・桑名" },
+  { code:"0595", name:"三重県 伊賀・名張・亀山" },
+  { code:"0596", name:"三重県 伊勢" },
+  { code:"0597", name:"三重県 尾鷲・熊野" },
+  { code:"0598", name:"三重県 松坂・大台" },
+
+  { code:"06", name:"大阪府 大阪・東大阪・吹田・守口・門真・摂津の一部（※尼崎も入る旨の説明あり）" },
+  { code:"0721", name:"大阪府 富田林・河内長野" },
+  { code:"0722,3", name:"大阪府 堺・松原・大阪狭山" },
+  { code:"0724", name:"大阪府 岸和田・貝塚・泉佐野" },
+  { code:"0725", name:"大阪府 和泉・泉大津" },
+  { code:"0726", name:"大阪府 高槻・茨木・摂津" },
+  { code:"0727", name:"大阪府 池田・箕面／兵庫県 川西・伊丹・猪名川" },
+  { code:"0728", name:"大阪府 寝屋川・枚方・大東・四条畷" },
+  { code:"0729", name:"大阪府 羽曳野・柏原・八尾・藤井寺・東大阪の一部" },
+
+  { code:"0734", name:"和歌山県 和歌山・海南" },
+  { code:"0735", name:"和歌山県 新宮・古座川・串本" },
+  { code:"0736", name:"和歌山県 橋本・紀ノ川・岩出" },
+  { code:"0737", name:"和歌山県 有田・有田川・湯浅" },
+  { code:"0738", name:"和歌山県 御坊" },
+  { code:"0739", name:"和歌山県 田辺" },
+
+  { code:"0740", name:"滋賀県 高島" },
+  { code:"0742", name:"奈良県 奈良" },
+  { code:"0743", name:"奈良県 大和郡山・生駒・天理／京都府 笠置・南山城" },
+  { code:"0744", name:"奈良県 橿原・桜井・大和高田" },
+  { code:"0745", name:"奈良県 五條・御所" },
+  { code:"0746", name:"奈良県 吉野" },
+  { code:"0747", name:"奈良県 十津川" },
+  { code:"0748", name:"滋賀県 東近江・近江八幡・日野" },
+  { code:"0749", name:"滋賀県 長浜・甲良・愛荘" },
+
+  { code:"075", name:"京都府 京都市周辺" },
+  { code:"0770", name:"福井県 敦賀" },
+  { code:"0771", name:"京都府 亀岡" },
+  { code:"0772", name:"京都府 宮津" },
+  { code:"0773", name:"京都府 福知山・舞鶴" },
+  { code:"0774", name:"京都府 木津川・京田辺・城陽" },
+  { code:"0775", name:"滋賀県 大津・近江八幡" },
+  { code:"0776", name:"福井県 福井" },
+  { code:"0777", name:"滋賀県 彦根・米原" },
+  { code:"0778", name:"福井県 越前" },
+  { code:"0779", name:"福井県 あわら・坂井" },
+
+  { code:"076", name:"石川県 金沢／富山県 富山" },
+  { code:"0761", name:"石川県 小松" },
+  { code:"0763", name:"富山県 砺波" },
+  { code:"0765", name:"富山県 魚津" },
+  { code:"0766", name:"富山県 高岡" },
+  { code:"0767", name:"石川県 七尾" },
+  { code:"0768", name:"石川県 輪島" },
+
+  { code:"078", name:"兵庫県 神戸" },
+  { code:"079", name:"兵庫県 姫路・加西" },
+  { code:"0790", name:"兵庫県 西脇・三田" },
+  { code:"0791", name:"兵庫県 赤穂" },
+  { code:"0794", name:"兵庫県 三木" },
+  { code:"0795", name:"兵庫県 丹波" },
+  { code:"0796", name:"兵庫県 豊岡" },
+  { code:"0797", name:"兵庫県 宝塚" },
+  { code:"0798", name:"兵庫県 西宮・芦屋" },
+  { code:"0799", name:"兵庫県 洲本" },
+
+  { code:"0852", name:"島根県 松江" },
+  { code:"0853", name:"島根県 出雲" },
+  { code:"0854", name:"島根県 雲南・奥出雲" },
+  { code:"0855", name:"島根県 浜田" },
+  { code:"0856", name:"島根県 益田・津和野" },
+  { code:"0857", name:"鳥取県 鳥取" },
+  { code:"0858", name:"鳥取県 倉吉" },
+  { code:"0859", name:"鳥取県 米子" },
+
+  { code:"082", name:"広島県 広島" },
+  { code:"0820", name:"山口県 岩国" },
+  { code:"0823", name:"広島県 呉" },
+  { code:"0824", name:"広島県 三次" },
+  { code:"0826", name:"広島県 山口・安芸太田・北広島町" },
+  { code:"084", name:"広島県 福山・尾道" },
+  { code:"0845", name:"広島県 因島・生口島" },
+  { code:"0846", name:"広島県 竹原・大崎上島" },
+  { code:"0847", name:"広島県 府中" },
+
+  { code:"086", name:"岡山県 岡山" },
+  { code:"0863", name:"岡山県 玉野" },
+  { code:"0865", name:"岡山県 笠岡" },
+  { code:"0866", name:"岡山県 高梁" },
+  { code:"0867", name:"岡山県 津山" },
+  { code:"0868", name:"岡山県 真庭" },
+  { code:"0869", name:"岡山県 備前" },
+
+  { code:"083", name:"山口県 下関" },
+  { code:"0833", name:"山口県 光" },
+  { code:"0834", name:"山口県 周南" },
+  { code:"0835", name:"山口県 防府" },
+  { code:"0836", name:"山口県 宇部" },
+  { code:"0837", name:"山口県 萩" },
+  { code:"0838", name:"山口県 長門" },
+  { code:"0839", name:"山口県 山口" },
+
+  { code:"087", name:"香川県 高松" },
+  { code:"0875", name:"香川県 三豊・観音寺" },
+  { code:"0877", name:"香川県 丸亀・坂出" },
+  { code:"0879", name:"香川県 東かがわ・さぬき" },
+
+  { code:"088", name:"徳島県 徳島" },
+  { code:"0880", name:"高知県 四万十・土佐清水" },
+  { code:"0883", name:"徳島県 吉野川・美馬" },
+  { code:"0884", name:"徳島県 阿南" },
+  { code:"0885", name:"徳島県 牟岐・海陽" },
+  { code:"0887", name:"高知県 高知" },
+  { code:"0889", name:"高知県 土佐" },
+
+  { code:"089", name:"愛媛県 松山・伊予" },
+  { code:"0893", name:"愛媛県 大洲・内子" },
+  { code:"0894", name:"愛媛県 八幡浜" },
+  { code:"0895", name:"愛媛県 宇和島" },
+  { code:"0896", name:"愛媛県 四国中央" },
+  { code:"0897", name:"愛媛県 新居浜・西条" },
+
+  { code:"092", name:"福岡県 福岡・糸島・太宰府・筑紫野・古賀" },
+  { code:"0920", name:"長崎県 壱岐・対馬" },
+  { code:"093", name:"福岡県 北九州・中間・水巻" },
+  { code:"0930", name:"福岡県 行橋" },
+  { code:"0940", name:"福岡県 宗像・福津" },
+  { code:"0942", name:"福岡県 久留米・小郡・筑後／佐賀県 鳥栖" },
+  { code:"0943", name:"福岡県 八女・うきは" },
+  { code:"0944", name:"福岡県 大牟田・柳川・大川・みやま" },
+  { code:"0946", name:"福岡県 朝倉" },
+  { code:"0947", name:"福岡県 田川" },
+  { code:"0948", name:"福岡県 飯塚・嘉麻" },
+  { code:"0949", name:"福岡県 直方・宮若" },
+  { code:"0932", name:"佐賀県 鳥栖" },
+
+  { code:"0950", name:"長崎県 平戸" },
+  { code:"0952", name:"佐賀県 佐賀" },
+  { code:"0954", name:"佐賀県 嬉野・武雄" },
+  { code:"0955", name:"佐賀県 唐津・伊万里" },
+  { code:"0956", name:"長崎県 佐世保" },
+  { code:"0957", name:"長崎県 諫早・島原" },
+  { code:"0958", name:"長崎県 長崎" },
+  { code:"0959", name:"長崎県 五島・西海" },
+
+  { code:"0962-3", name:"熊本県 熊本・合志" },
+  { code:"0964", name:"熊本県 宇土・宇城" },
+  { code:"0965", name:"熊本県 八代" },
+  { code:"0966", name:"熊本県 人吉・水俣" },
+  { code:"0967", name:"熊本県 阿蘇" },
+  { code:"0968", name:"熊本県 菊池・山鹿・玉名" },
+  { code:"0969", name:"熊本県 天草" },
+
+  { code:"0972", name:"大分県 佐伯・臼杵" },
+  { code:"0973", name:"大分県 日田" },
+  { code:"0974", name:"大分県 豊後大野・竹田" },
+  { code:"0975", name:"大分県 大分・由布" },
+  { code:"0977", name:"大分県 別府" },
+  { code:"0978", name:"大分県 豊後高田・宇佐・杵築・国東" },
+  { code:"0979", name:"大分県 中津／福岡県 豊前" },
+
+  { code:"0982", name:"宮崎県 延岡" },
+  { code:"0983", name:"宮崎県 新富・高鍋・西都" },
+  { code:"0984", name:"宮崎県 日南・串間" },
+  { code:"0985", name:"宮崎県 宮崎" },
+  { code:"0986", name:"宮崎県 都城" },
+  { code:"0987", name:"宮崎県 小林・えびの" },
+
+  { code:"0990", name:"鹿児島県 指宿" },
+  { code:"0993", name:"鹿児島県 枕崎・南さつま・南九州" },
+  { code:"0994", name:"鹿児島県 鹿屋・肝付" },
+  { code:"0995", name:"鹿児島県 霧島・姶良" },
+  { code:"0996", name:"鹿児島県 薩摩川内" },
+  { code:"0997", name:"鹿児島県 奄美・徳之島" },
+  { code:"099", name:"鹿児島県 鹿児島" },
+
+  { code:"098", name:"沖縄県 那覇市周辺（※記事内で「沖縄県は098」と説明あり）" }
+];
+
+let mode = "random"; // "random" | "cycle"
+let order = [];
+let idx = -1;
+
+let state = "start"; // "start" | "question" | "answer"
+let current = null;
+
+const codeEl = document.getElementById("code");
+const ansEl  = document.getElementById("answer");
+const titleEl = document.getElementById("title");
+const hintEl = document.getElementById("hint");
+const progEl = document.getElementById("progress");
+const modeEl = document.getElementById("mode");
+const only4El = document.getElementById("only4");
+
+function isFourDigits(code){ return /^\d{4}$/.test(code); }
+
+function getActiveIndices(){
+  const only4 = !!only4El.checked;
+  const indices = [];
+  for(let i=0;i<data.length;i++){
+    if(!only4 || isFourDigits(data[i].code)) indices.push(i);
+  }
+  return indices;
+}
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function rebuildOrder(){
+  order = getActiveIndices();
+  if(mode==="random") shuffle(order);
+  idx = -1;
+}
+
+function setProgress(){
+  const total = order.length;
+  const shown = Math.max(0, idx+1);
+  progEl.textContent = `${Math.min(shown,total)} / ${total}`;
+  modeEl.textContent = mode==="random" ? "ランダム" : "順番";
+}
+
+function showStart(){
+  state = "start";
+  current = null;
+  codeEl.textContent = "タップして開始";
+  ansEl.textContent = "";
+  ansEl.classList.remove("show");
+  hintEl.textContent = "画面をタップ：開始 / 答え表示 / 次の問題";
+  titleEl.textContent = "市外局番クイズ";
+  setProgress();
+}
+
+function nextQuestion(){
+  if(order.length===0){
+    state = "start";
+    current = null;
+    codeEl.textContent = "出題できるデータがありません";
+    ansEl.textContent = "（「4桁のみ出題」をOFFにするか、データを追加してください）";
+    ansEl.classList.add("show");
+    titleEl.textContent = "データなし";
+    hintEl.textContent = "設定を変更してください";
+    setProgress();
+    return;
+  }
+
+  if(mode==="random"){
+    if(idx >= order.length-1){
+      rebuildOrder(); // 一周したら再シャッフル
+    }
+    idx++;
+  } else {
+    idx = (idx + 1) % order.length;
+  }
+
+  current = data[order[idx]];
+  state = "question";
+  codeEl.textContent = current.code;
+  ansEl.textContent = "";
+  ansEl.classList.remove("show");
+  titleEl.textContent = "この市外局番はどこ？";
+  hintEl.textContent = "タップで答えを表示";
+  setProgress();
+}
+
+function showAnswer(){
+  if(!current) return;
+  state = "answer";
+  ansEl.textContent = current.name;
+  ansEl.classList.add("show");
+  titleEl.textContent = "答え";
+  hintEl.textContent = "タップで次の問題へ";
+}
+
+function tap(){
+  if(state==="start") return nextQuestion();
+  if(state==="question") return showAnswer();
+  if(state==="answer") return nextQuestion();
+}
+
+document.getElementById("tapBtn").addEventListener("click", tap);
+document.getElementById("card").addEventListener("click", (e) => {
+  const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+  if(tag==="button" || tag==="input" || tag==="label") return;
+  tap();
+});
+
+document.getElementById("toggleMode").addEventListener("click", (e) => {
+  e.stopPropagation();
+  mode = (mode==="random") ? "cycle" : "random";
+  rebuildOrder();
+  showStart();
+});
+
+document.getElementById("reset").addEventListener("click", (e) => {
+  e.stopPropagation();
+  rebuildOrder();
+  showStart();
+});
+
+only4El.addEventListener("change", () => {
+  rebuildOrder();
+  showStart();
+});
+
+rebuildOrder();
+showStart();
+</script>
+</body>
+</html>
